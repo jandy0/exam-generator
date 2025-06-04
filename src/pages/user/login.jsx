@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { FiMail, FiLock } from 'react-icons/fi';
+import logo from '../../assets/logo.jpg';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -26,48 +28,90 @@ export default function Login() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-md p-8 space-y-6 bg-white rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold text-center text-gray-800">Login to your account</h2>
-        {error && <div className="p-3 text-sm text-red-600 bg-red-100 rounded">{error}</div>}
-        <form className="space-y-4" onSubmit={handleSubmit}>
-          <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Email</label>
-            <input
-              type="email"
-              className="w-full px-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="you@example.com"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-            />
-          </div>
-          <div>
-            <label className="block mb-1 text-sm font-medium text-gray-700">Password</label>
-            <input
-              type="password"
-              className="w-full px-4 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="••••••••"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-          </div>
-          <button
-            type="submit"
-            className="w-full px-4 py-2 text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition"
-            disabled={loading}
-          >
-            {loading ? 'Signing in...' : 'Sign In'}
-          </button>
-        </form>
+    <div className="min-h-screen flex">
+      {/* Left Panel - Image */}
+      <div className="hidden lg:flex lg:w-1/2 bg-black items-center justify-center">
+        <div className="max-w-md text-center">
+          <img src={logo} alt="Exam Generator Logo" className="w-64 mx-auto mb-8" />
+        </div>
+      </div>
 
-        <p className="text-sm text-center text-gray-600">
-          Don't have an account?{" "}
-          <Link to="/user/signup" className="text-blue-600 hover:underline font-medium">
-            Sign up here
-          </Link>
-        </p>
+      {/* Right Panel - Login Form */}
+      <div className="w-full lg:w-1/2 flex items-center justify-center p-8 bg-gray-50">
+        <div className="w-full max-w-md">
+          {/* Mobile Logo */}
+          <div className="lg:hidden flex justify-center mb-8">
+            <img src={logo} alt="Exam Generator Logo" className="w-40" />
+          </div>
+
+          <div className="bg-white p-8 rounded-2xl shadow-lg space-y-8">
+            <div className="text-center">
+              <h2 className="text-3xl font-bold text-gray-900">Welcome Back</h2>
+              <p className="mt-2 text-sm text-gray-600">Sign in to your account</p>
+            </div>
+
+            {error && (
+              <div className="bg-red-50 border-l-4 border-red-500 p-4 rounded">
+                <p className="text-sm text-red-600">{error}</p>
+              </div>
+            )}
+
+            <form className="space-y-6" onSubmit={handleSubmit}>
+              <div className="space-y-4">
+                <div>
+                  <div className="relative">
+                    <FiMail className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                      placeholder="Email address"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="relative">
+                    <FiLock className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400" />
+                    <input
+                      type="password"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                      className="w-full pl-10 pr-4 py-3 border border-gray-200 rounded-lg focus:ring-2 focus:ring-black focus:border-transparent"
+                      placeholder="Password"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-3 px-4 bg-black text-white rounded-lg hover:bg-gray-800 transition duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black disabled:opacity-50"
+              >
+                {loading ? (
+                  <div className="flex items-center justify-center">
+                    <div className="w-5 h-5 border-t-2 border-b-2 border-white rounded-full animate-spin"></div>
+                  </div>
+                ) : (
+                  'Sign In'
+                )}
+              </button>
+            </form>
+
+            <div className="text-center">
+              <Link
+                to="/user/register"
+                className="text-sm font-medium text-gray-600 hover:text-black transition-colors"
+              >
+                Don't have an account? Sign up
+              </Link>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
