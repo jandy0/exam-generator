@@ -1,7 +1,9 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate } from 'react-router-dom';
-import { FiLogOut, FiUser } from 'react-icons/fi';
+import { FiLogOut, FiUser, FiPlus, FiDownload, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 export default function Dashboard() {
   const { currentUser, logout } = useAuth();
@@ -9,6 +11,7 @@ export default function Dashboard() {
   const [examTitle, setExamTitle] = useState("Sample Exam");
   const [questions, setQuestions] = useState([]);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const pdfContentRef = useRef(null);
 
   const handleLogout = async () => {
     try {
@@ -39,33 +42,144 @@ export default function Dashboard() {
     setQuestions(questions.filter(q => q.id !== id));
   };
 
-  const downloadPDF = () => {
-    // PDF generation logic will be implemented later
-    console.log("Generating PDF...");
+  const downloadPDF = async () => {
+    try {
+      // Create a temporary div for PDF content
+      const pdfContainer = document.createElement('div');
+      pdfContainer.style.padding = '20px';
+      pdfContainer.style.background = 'white';
+      pdfContainer.style.color = 'black';
+      pdfContainer.style.fontFamily = 'Arial, sans-serif';
+
+      // Add exam title and metadata
+      const titleSection = document.createElement('div');
+      titleSection.innerHTML = `
+        <h1 style="font-size: 24px; margin-bottom: 10px; text-align: center;">${examTitle}</h1>
+        <div style="margin-bottom: 20px; font-size: 14px; border-bottom: 1px solid #ccc; padding-bottom: 10px;">
+          <p>Date: ${new Date().toLocaleDateString()}</p>
+          <p>Name: ________________________________</p>
+          <p>Total Questions: ${questions.length}</p>
+          <p>Total Points: ${questions.reduce((sum, q) => sum + (q.points || 0), 0)}</p>
+        </div>
+        <div style="margin-bottom: 10px; font-size: 14px;">
+          <p>Instructions: Answer all questions. Write your answers clearly and legibly.</p>
+        </div>
+      `;
+      pdfContainer.appendChild(titleSection);
+
+      // Add questions
+      questions.forEach((question, index) => {
+        const questionDiv = document.createElement('div');
+        questionDiv.style.marginBottom = '20px';
+        
+        let questionContent = `
+          <div style="margin-bottom: 15px;">
+            <p style="font-weight: bold; margin-bottom: 8px;">
+              ${index + 1}. ${question.question} (${question.points} ${question.points === 1 ? 'point' : 'points'})
+            </p>
+        `;
+
+        if (question.type === 'multiple') {
+          questionContent += `<div style="margin-left: 20px;">`;
+          question.options.forEach((option, i) => {
+            questionContent += `
+              <div style="margin-top: 5px;">
+                ○ ${String.fromCharCode(65 + i)}. ${option}
+              </div>
+            `;
+          });
+          questionContent += `</div>`;
+        } else if (question.type === 'true-false') {
+          questionContent += `
+            <div style="margin-left: 20px;">
+              ○ True
+              <br>
+              ○ False
+            </div>
+          `;
+        } else if (question.type === 'identification') {
+          questionContent += `
+            <div style="margin-left: 20px; margin-top: 10px;">
+              Answer: _________________________________
+            </div>
+          `;
+        }
+
+        questionContent += '</div>';
+        questionDiv.innerHTML = questionContent;
+        pdfContainer.appendChild(questionDiv);
+      });
+
+      // Temporarily add to document for conversion
+      document.body.appendChild(pdfContainer);
+
+      // Convert to PDF
+      const pdf = new jsPDF('p', 'mm', 'a4');
+      const pdfWidth = pdf.internal.pageSize.getWidth();
+      const pdfHeight = pdf.internal.pageSize.getHeight();
+      
+      // Convert HTML to canvas
+      const canvas = await html2canvas(pdfContainer, {
+        scale: 2,
+        useCORS: true,
+        logging: false,
+        backgroundColor: '#ffffff'
+      });
+
+      // Remove temporary container
+      document.body.removeChild(pdfContainer);
+
+      // Calculate dimensions
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      // Add first page
+      pdf.addImage(canvas, 'PNG', 0, 0, imgWidth, imgHeight, '', 'FAST');
+      heightLeft -= pdfHeight;
+      
+      // Add subsequent pages if needed
+      while (heightLeft >= 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(canvas, 'PNG', 0, position, imgWidth, imgHeight, '', 'FAST');
+        heightLeft -= pdfHeight;
+      }
+
+      // Save the PDF
+      const timestamp = new Date().toISOString().slice(0, 19).replace(/[-:]/g, '');
+      pdf.save(`${examTitle.replace(/\s+/g, '_')}_${timestamp}.pdf`);
+
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+    }
   };
-  
-   if (!currentUser) {
-    return null; // or a loading spinner
+
+  if (!currentUser) {
+    return null;
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gray-900">
       {/* Header */}
-      <header className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Exam Generator</h1>
-          <div className="flex items-center space-x-4">
-            <div className="flex items-center space-x-2">
-              <FiUser className="text-gray-600" />
-              <span className="text-gray-600">{currentUser.email}</span>
+      <header className="bg-black border-b border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <h1 className="text-xl font-semibold text-white">Exam Generator</h1>
+            <div className="flex items-center space-x-4">
+              <div className="flex items-center space-x-3 px-4 py-2 bg-gray-800 rounded-lg">
+                <FiUser className="text-gray-400" />
+                <span className="text-gray-300 text-sm">{currentUser.email}</span>
+              </div>
+              <button
+                onClick={handleLogout}
+                className="flex items-center space-x-2 px-4 py-2 text-sm text-red-400 bg-red-900/20 hover:bg-red-900/40 rounded-lg transition-colors"
+              >
+                <FiLogOut />
+                <span>Logout</span>
+              </button>
             </div>
-            <button
-              onClick={handleLogout}
-              className="flex items-center space-x-2 px-4 py-2 text-sm text-red-600 hover:bg-red-50 rounded-md"
-            >
-              <FiLogOut />
-              <span>Logout</span>
-            </button>
           </div>
         </div>
       </header>
@@ -73,64 +187,74 @@ export default function Dashboard() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Exam Title */}
-        <div className="mb-6">
+        <div className="mb-8">
           {isEditingTitle ? (
             <input
               type="text"
               value={examTitle}
               onChange={(e) => setExamTitle(e.target.value)}
               onBlur={() => setIsEditingTitle(false)}
-              className="text-3xl font-bold border-b-2 border-blue-500 focus:outline-none"
+              className="text-3xl font-bold bg-transparent text-white border-b-2 border-indigo-500 focus:outline-none w-full"
               autoFocus
             />
           ) : (
-            <h2
-              className="text-3xl font-bold cursor-pointer hover:text-blue-600"
-              onClick={() => setIsEditingTitle(true)}
-            >
-              {examTitle}
-            </h2>
+            <div className="flex items-center space-x-3 group cursor-pointer" onClick={() => setIsEditingTitle(true)}>
+              <h2 className="text-3xl font-bold text-white group-hover:text-indigo-400 transition-colors">
+                {examTitle}
+              </h2>
+              <FiEdit2 className="text-gray-500 group-hover:text-indigo-400 transition-colors" />
+            </div>
           )}
         </div>
 
         {/* Action Buttons */}
-        <div className="mb-6 flex space-x-4">
+        <div className="mb-8 flex flex-wrap gap-4">
           <button
             onClick={() => addQuestion('multiple')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
           >
-            Add Multiple Choice
+            <FiPlus />
+            <span>Multiple Choice</span>
           </button>
           <button
             onClick={() => addQuestion('true-false')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
           >
-            Add True/False
+            <FiPlus />
+            <span>True/False</span>
           </button>
           <button
             onClick={() => addQuestion('identification')}
-            className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            className="flex items-center space-x-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
           >
-            Add Identification
+            <FiPlus />
+            <span>Identification</span>
           </button>
           <button
             onClick={downloadPDF}
-            className="px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 ml-auto"
+            className="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors ml-auto"
           >
-            Download PDF
+            <FiDownload />
+            <span>Export PDF</span>
           </button>
         </div>
 
         {/* Questions List */}
-        <div className="space-y-6">
-          {questions.map((question) => (
-            <QuestionCard
-              key={question.id}
-              question={question}
-              onUpdate={updateQuestion}
-              onDelete={deleteQuestion}
-            />
-          ))}
+        <div ref={pdfContentRef} className="space-y-6">
+          {questions.length === 0 ? (
+            <div className="text-center py-12 bg-gray-800/50 rounded-lg border-2 border-dashed border-gray-700">
+              <p className="text-gray-400">No questions added yet. Click one of the buttons above to add a question.</p>
+            </div>
+          ) : (
+            questions.map((question) => (
+              <QuestionCard
+                key={question.id}
+                question={question}
+                onUpdate={updateQuestion}
+                onDelete={deleteQuestion}
+              />
+            ))
+          )}
         </div>
       </main>
     </div>
@@ -147,21 +271,21 @@ function QuestionCard({ question, onUpdate, onDelete }) {
   };
 
   return (
-    <div className="bg-white rounded-lg shadow p-6">
+    <div className="bg-gray-800 rounded-lg border border-gray-700 overflow-hidden">
       {isEditing ? (
-        <div className="space-y-4">
+        <div className="p-6 space-y-4">
           <input
             type="text"
             value={editedQuestion.question}
             onChange={(e) => setEditedQuestion({ ...editedQuestion, question: e.target.value })}
-            className="w-full p-2 border rounded"
+            className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
             placeholder="Enter your question"
           />
           
           {question.type === 'multiple' && (
-            <div className="space-y-2">
+            <div className="space-y-3">
               {editedQuestion.options.map((option, index) => (
-                <div key={index} className="flex items-center space-x-2">
+                <div key={index} className="flex items-center space-x-3">
                   <input
                     type="text"
                     value={option}
@@ -170,15 +294,19 @@ function QuestionCard({ question, onUpdate, onDelete }) {
                       newOptions[index] = e.target.value;
                       setEditedQuestion({ ...editedQuestion, options: newOptions });
                     }}
-                    className="flex-1 p-2 border rounded"
+                    className="flex-1 p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
                     placeholder={`Option ${['A', 'B', 'C', 'D'][index]}`}
                   />
-                  <input
-                    type="radio"
-                    name={`correct-${question.id}`}
-                    checked={editedQuestion.correctAnswer === option}
-                    onChange={() => setEditedQuestion({ ...editedQuestion, correctAnswer: option })}
-                  />
+                  <label className="flex items-center space-x-2 text-gray-300">
+                    <input
+                      type="radio"
+                      name={`correct-${question.id}`}
+                      checked={editedQuestion.correctAnswer === option}
+                      onChange={() => setEditedQuestion({ ...editedQuestion, correctAnswer: option })}
+                      className="text-indigo-600 focus:ring-indigo-500 bg-gray-700 border-gray-600"
+                    />
+                    <span>Correct</span>
+                  </label>
                 </div>
               ))}
             </div>
@@ -186,71 +314,68 @@ function QuestionCard({ question, onUpdate, onDelete }) {
 
           {question.type === 'true-false' && (
             <div className="flex space-x-4">
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name={`tf-${question.id}`}
-                  value="true"
-                  checked={editedQuestion.correctAnswer === 'true'}
-                  onChange={(e) => setEditedQuestion({ ...editedQuestion, correctAnswer: e.target.value })}
-                />
-                <span>True</span>
-              </label>
-              <label className="flex items-center space-x-2">
-                <input
-                  type="radio"
-                  name={`tf-${question.id}`}
-                  value="false"
-                  checked={editedQuestion.correctAnswer === 'false'}
-                  onChange={(e) => setEditedQuestion({ ...editedQuestion, correctAnswer: e.target.value })}
-                />
-                <span>False</span>
-              </label>
+              {['true', 'false'].map((value) => (
+                <label key={value} className="flex items-center space-x-2 text-gray-300">
+                  <input
+                    type="radio"
+                    name={`tf-${question.id}`}
+                    value={value}
+                    checked={editedQuestion.correctAnswer === value}
+                    onChange={(e) => setEditedQuestion({ ...editedQuestion, correctAnswer: e.target.value })}
+                    className="text-indigo-600 focus:ring-indigo-500 bg-gray-700 border-gray-600"
+                  />
+                  <span className="capitalize">{value}</span>
+                </label>
+              ))}
             </div>
           )}
 
           {question.type === 'identification' && (
             <input
               type="text"
-              value={editedQuestion.correctAnswer}
+              value={editedQuestion.correctAnswer || ''}
               onChange={(e) => setEditedQuestion({ ...editedQuestion, correctAnswer: e.target.value })}
-              className="w-full p-2 border rounded"
+              className="w-full p-2 bg-gray-700 border border-gray-600 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-indigo-500"
               placeholder="Correct answer"
             />
           )}
 
           <div className="flex items-center space-x-4">
-            <input
-              type="number"
-              value={editedQuestion.points}
-              onChange={(e) => setEditedQuestion({ ...editedQuestion, points: parseInt(e.target.value) })}
-              className="w-20 p-2 border rounded"
-              min="1"
-            />
-            <span>points</span>
-          </div>
-
-          <div className="flex space-x-2">
-            <button
-              onClick={handleSave}
-              className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
-            >
-              Save
-            </button>
-            <button
-              onClick={() => setIsEditing(false)}
-              className="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700"
-            >
-              Cancel
-            </button>
+            <div className="flex items-center space-x-2">
+              <input
+                type="number"
+                value={editedQuestion.points}
+                onChange={(e) => setEditedQuestion({ ...editedQuestion, points: parseInt(e.target.value) || 1 })}
+                className="w-20 p-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-indigo-500"
+                min="1"
+              />
+              <span className="text-gray-400">points</span>
+            </div>
+            <div className="flex space-x-2">
+              <button
+                onClick={handleSave}
+                className="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg transition-colors"
+              >
+                Save
+              </button>
+              <button
+                onClick={() => {
+                  setEditedQuestion(question); // Reset to original
+                  setIsEditing(false);
+                }}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
           </div>
         </div>
       ) : (
-        <div>
+        <div className="p-6">
           <div className="flex justify-between items-start mb-4">
             <div>
-              <h3 className="text-lg font-semibold">{question.question || 'New Question'}</h3>
-              <p className="text-sm text-gray-500">
+              <h3 className="text-lg font-semibold text-white">{question.question || 'New Question'}</h3>
+              <p className="text-sm text-gray-400">
                 {question.type === 'multiple' ? 'Multiple Choice' : 
                  question.type === 'true-false' ? 'True/False' : 'Identification'}
               </p>
@@ -258,38 +383,44 @@ function QuestionCard({ question, onUpdate, onDelete }) {
             <div className="flex space-x-2">
               <button
                 onClick={() => setIsEditing(true)}
-                className="px-3 py-1 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+                className="flex items-center space-x-1 px-3 py-1 text-sm bg-gray-700 hover:bg-gray-600 text-white rounded-lg transition-colors"
               >
-                Edit
+                <FiEdit2 size={14} />
+                <span>Edit</span>
               </button>
               <button
                 onClick={() => onDelete(question.id)}
-                className="px-3 py-1 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+                className="flex items-center space-x-1 px-3 py-1 text-sm bg-red-900/30 hover:bg-red-900/50 text-red-400 rounded-lg transition-colors"
               >
-                Delete
+                <FiTrash2 size={14} />
+                <span>Delete</span>
               </button>
             </div>
           </div>
           
           {question.type === 'multiple' && question.options.map((option, index) => (
-            <div key={index} className="flex items-center space-x-2 mb-1">
+            <div key={index} className="flex items-center space-x-2 mb-1 text-gray-300">
               <span className="font-semibold">{['A', 'B', 'C', 'D'][index]}.</span>
               <span>{option}</span>
               {option === question.correctAnswer && (
-                <span className="text-green-600 text-sm">(Correct)</span>
+                <span className="text-green-400 text-sm">(Correct)</span>
               )}
             </div>
           ))}
 
           {question.type === 'true-false' && (
-            <p>Correct Answer: {question.correctAnswer}</p>
+            <p className="text-gray-300">
+              Correct Answer: <span className="text-green-400">{question.correctAnswer}</span>
+            </p>
           )}
 
           {question.type === 'identification' && (
-            <p>Correct Answer: {question.correctAnswer}</p>
+            <p className="text-gray-300">
+              Correct Answer: <span className="text-green-400">{question.correctAnswer}</span>
+            </p>
           )}
 
-          <p className="text-sm text-gray-600 mt-2">Points: {question.points}</p>
+          <p className="text-sm text-gray-400 mt-2">Points: {question.points}</p>
         </div>
       )}
     </div>
